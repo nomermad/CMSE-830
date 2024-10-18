@@ -285,51 +285,6 @@ elif option == "Data Overview":
 
 elif option == "Data Analysis":
     st.title("Summary of Data Analysis")
-    st.markdown(""" 
-    * **Statistics for specific Columns:** The mean unemployment for each demographic column in the unemployment dataset was calculated, to get a 
-    general idea about those columns. 
-    * **What types of Variables are there:** There is a mix of categorical and numerical columns. The categorical columns are state, crime typed, 
-    crime solved, victim sex, victim race, victim ethnicity, perpetrator sex, perpetrator race, perpetrator ethnicity, relationship and weapon 
-    used. The rest of the columns were numerical. 
-    * **Value Counts:** The value counts for victim sex, victim race, perpetrator sex, and perpetrator race were explored. I used value counts for 
-    these variables, as it did not make sense to explore the mean
-    * **Correlation Graph:** A correlation matrix was created using relevant features. Upon looking at the correlation, there was almost no 
-    correlation between the selected features from the unemployment dataframe and the homicide dataframe.
-    * **Z-Score Outliers:** The columns were scaled using the z-score and the outliers were printed, which were how many rows were less than -3 or 
-    greater than 3 after scaling. The columns with outliers were Victim Age with 125 outliers, Perpetrator Age with 458 outliers, Victim Count with 
-    1016 outliers, Perpetrator Count with 1139 outliers, perpetrator ethnicity with 3807 outliers, Unemployment Rate Category with 3610 outliers, 
-    and Perpetrator_Sex_encoded with 3230 outliers.
-    * **Masking:** A new column was created that assigned a category for the unemployment rates. 0%-5% is low, 5%-10% is middle, and anything 
-    greater than 10% is a high unemployment rate. 
-    * **Figure 1:** Figure one is a plot distribution that shows the perpetrator's sex, with the range/category of unemployment they may fall 
-    under. A majority of perpetrators are males that fall under the middle unemployment category. 
-    * **Figure 2:** Figure two illustrates a multi dimensional plot showing the relationship between year, overall unemployment rate and 
-    perpetrator sex.
-    * **Figure 3:** Figure three illustrates the relationship of the overall unemployment rate and the unemployment rates based on degree. From the 
-    scatter plot, it can be conveyed that those with more schooling have a lower unemployment rate, as those who only completed highschool have a 
-    higher unemployment rate compared to those with a professional degree.
-    * **Figure 4:** Figure four conveys the relationship of victim count with the overall unemployment rate, coloring by year. The year 2014 had 
-    lower unemployment rates compared to the year 2010. 
-    * **Figure 5:** Figure five conveys the relationship of the encoded victim sex and the overall unemployment rate using a kde plot. From the 
-    plot, there is a dark center around 1 on the x axis and 10. The darker points are where more points lie, which suggest that a majority of the 
-    victims sex are males, with a higher unemployment rate. 
-    * **Figure 6:** Figure six conveys the relationship of average homicide victim count by state and unemployment rate. It is a bar graph that has 
-    states on the x axis and the average victim count for each state on the y axis. The bar graph is colored by unemployment. Alabama had the 
-    highest unemployment rate, but had the lowest average victim count.
-    * **What I got from the Data/What was I hoping to find:** What I was hoping to find was if there was a relationship between patterns in 
-    unemployment and homicide trends. 
-    * **What my overall results show:** There is no overall impact of unemployment rates on homicide trends, however a majority of perpetrators are 
-    male. The kde visualization suggests that a majority of the data points are male perpetrators with a middle/high unemployment rate. Ultimately, 
-    there is a relationship between the sex of an individual a
-    * **Ways to Improve:** One way I could have improved the project was focusing on class distributions. There may not have been equal class 
-    sizes, which could have impacted the results I got. My findings suggest that other factors, such as social or cultural factors, may play a 
-    stronger role in homicide incidents. Moreover, this gives an opportunity for further exploration of the data, by potentially exploring 
-    different patterns. The findings also suggest that there may be a relationship between the data, but it could be a more complex or nonlinear 
-    relationship. Polynomial regression or logistic regression may capture a better relationship. The homicide dataset was also missing a 
-    significant amount of categorical data points. While simple input was used to fill in the missing points, that could have also contributed to 
-    the relationship and finding a lack of correlation. Furthermore, only specific categorical variables were encoded and looked at, and encoding 
-    those and using different features such as if the crime was unsolved, weapon type, or the relationship between the perpetrator and victim may 
-    have changed the correlation""")
 
 
     selected_features = st.multiselect("Select Features to Display for the merged Dataset", options=merged_data.columns.tolist())
@@ -377,9 +332,6 @@ elif option == "Data Analysis":
     st.write("Correlation matrix with selected features")
     st.plotly_chart(fig_corr)
 
-    victim_age_by_sex = merged_data.groupby('Victim Sex')['Victim Age'].mean()
-    st.dataframe(victim_age_by_sex)
-
 
     numeric_cols = merged_data.select_dtypes(include=[np.number]).columns#This line selects all the numeric columns from the dataset
 
@@ -401,7 +353,7 @@ else:
     selection_graph_eda = st.selectbox("Choose a graph to display:", 
                            ["Histogram of Perpetrator Sex and Unemployment Rate Category",
                             "3D Scatter Plot of Year, Overall Unemployment Rate and Perpetrator Sex",
-                            "Unemployment Rates based on Highest Degree",
+                            Linear Regression for Unemployment Rates based on Highest Degree",
                             "Homicide Rates vs. Unemployment Rates",
                             "2D KDE Plot of Perpetrator Sex and Unemployment Rate",
                             "Average Homicide Victim Count by State"])
@@ -428,14 +380,49 @@ else:
                              color="Victim Count")
         st.plotly_chart(fig2)
 
-    elif selection_graph_eda == "Unemployment Rates based on Highest Degree":
-        fig3 = px.scatter(merged_data, 
-                          x='Overall_Unemployment_Rate', 
-                          y=['High_School','Associates_Degree','Professional_Degree'], 
-                          labels={'Overall_Unemployment_Rate': 'Overall Unemployment Rate (%)'},
-                          title='Unemployment Rates based on Degree')
-        st.plotly_chart(fig3)
+    elif selection_graph_eda == "Linear Regression for Unemployment Rates based on Highest Degree":
+        x = merged_data['Overall_Unemployment_Rate'].values.reshape(-1, 1)  #using numpy reshape to reshape the data to a 2D array, wouldn't run without this
+        high_school = merged_data['High_School'] 
+        associates = merged_data['Associates_Degree'] 
+        professional = merged_data['Professional_Degree']  
 
+
+        high_school_linreg = LinearRegression()
+        high_school_linreg.fit(x, high_school)
+
+        associates_linreg = LinearRegression()
+        associates_linreg.fit(x, associates)
+
+        professional_linreg = LinearRegression()
+        professional_linreg.fit(x, professional)
+
+
+        pred_high_school = high_school_linreg.predict(x)
+        pred_associates = associates_linreg.predict(x)
+        pred_professional = professional_linreg.predict(x)
+
+        rsquared_high_school = high_school_linreg.score(x, high_school)
+        rsquared_associates = associates_linreg.score(x, associates)
+        rsquared_professional = professional_linreg.score(x, professional)
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        ax.scatter(x, high_school, label='High School Degree Data')
+        ax.plot(x, pred_high_school, label='High School Fit', linestyle='--')
+
+        ax.scatter(x, associates, label='Associates Degree Data')
+        ax.plot(x, pred_associates, label='Associates Degree Fit', linestyle='--')
+
+        ax.scatter(x, professional, label='Professional Degree Data')
+        ax.plot(x, pred_professional, label='Professional Degree Fit', linestyle='--')
+
+        ax.set_title('Multivariate Linear Regression')
+        ax.set_xlabel('Overall Unemployment Rate')
+        ax.set_ylabel('Education Levels')
+        ax.legend()
+        st.pyplot(fig)
+        st.write(f'R² for High School: {rsquared_high_school:.2f}')
+        st.write(f'R² for Associates Degree: {rsquared_associates:.2f}')
+        st.write(f'R² for Professional Degree: {rsquared_professional:.2f}')
     elif selection_graph_eda == "Homicide Rates vs. Unemployment Rates":
         fig4 = px.scatter(merged_data, 
                           x='Victim Count', 
