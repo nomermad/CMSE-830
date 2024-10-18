@@ -353,7 +353,7 @@ else:
     selection_graph_eda = st.selectbox("Choose a graph to display:", 
                            ["Histogram of Perpetrator Sex and Unemployment Rate Category",
                             "3D Scatter Plot of Year, Overall Unemployment Rate and Perpetrator Sex",
-                            Linear Regression for Unemployment Rates based on Highest Degree",
+                            "Linear Regression for Unemployment Rates based on Highest Degree",
                             "Homicide Rates vs. Unemployment Rates",
                             "2D KDE Plot of Perpetrator Sex and Unemployment Rate",
                             "Average Homicide Victim Count by State"])
