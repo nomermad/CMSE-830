@@ -8,3 +8,5 @@ Numpy Requirement: 1.26.4
 
 
 The following packages are important and needed for the project: numpy, pandas, matplotlib, seaborn, sklearn.model_selection, sklearn.linear_model, plotly, and sklearn.preprocessing. 
+
+Link to my streamlit app: https://nomermad-cmse-830-app-6ymnml.streamlit.app/
