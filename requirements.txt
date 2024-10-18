@@ -1,3 +1,9 @@
-seaborn
-scikit-learn
-imbalanced-learn
+scipy
+sklearn
+imblearn
+plotly
+
+scipy==1.11.3
+scikit-learn==1.3.0  # sklearn is part of scikit-learn
+imbalanced-learn==0.10.1  # for imblearn
+plotly==5.15.0
