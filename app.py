@@ -13,11 +13,25 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer, SimpleImputer
 from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.metrics import mean_squared_error, r2_score
 import plotly.figure_factory as ff
 import zipfile
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    mean_squared_error,
+    mean_absolute_error,
+    r2_score,
+    root_mean_squared_error, 
+)
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.preprocessing import StandardScaler
+from category_encoders import LeaveOneOutEncoder
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 st.title("Demographic and Economic Patterns in Homicide Incidents")
-st.write('Welcome to my Streamlit app!')# Load and display your data, add widgets, etc.
+st.write('Welcome to my Streamlit app!')
 
 @st.cache_data
 def load_data():
@@ -36,7 +50,7 @@ def load_data():
 
 data = load_data()
 data.replace("Unknown", np.nan, inplace=True)
-
+crime = pd.read_csv('crime_and_incarceration.csv')
 us_unemployment = pd.read_csv('unemployment_data_us.csv')
 
 filtered_violence = data.rename(columns={"Year": "year"})
@@ -56,9 +70,13 @@ month_mapping = {
 }
 filtered_unemployment['month'] = filtered_unemployment['Month'].map(month_mapping)
 filtered_unemployment.drop(columns=['Month'], inplace=True)
-merged_data = pd.merge(filtered_violence, filtered_unemployment, on=['year','month'])
+crime['jurisdiction'] = crime['jurisdiction'].apply(lambda x: x.capitalize() if x.isupper() else x)
+crime = crime.rename(columns={"jurisdiction": "State"})
+
+merged_data0 = pd.merge(filtered_violence, filtered_unemployment, on=['year','month'])
+merged_data = pd.merge(merged_data0, crime, on=['year', 'State'])
 merged_data.drop_duplicates()
-merged_data = merged_data.drop(['Record ID', 'Agency Code','City','Incident','Agency Name','Agency Type','Record Source'], axis=1)
+merged_data = merged_data.drop(['Record ID', 'Agency Code','City','Incident','Agency Name','Agency Type','Record Source', 'includes_jails'], axis=1)
 
 data = merged_data.copy() #creating a copy of the dataset 
 
@@ -159,6 +177,16 @@ hispanic_mean = merged_data['Hispanic'].mean()
 asian_mean = merged_data['Asian'].mean()
 men_mean = merged_data['Men'].mean()
 women_mean = merged_data['Women'].mean()
+prisoner_mean = merged_data['prisoner_count'].mean()
+population_mean = merged_data['state_population'].mean()
+violent_crime_mean = merged_data['violent_crime_total'].mean()
+manslaughter_mean = merged_data['murder_manslaughter'].mean()
+robbery_mean = merged_data['robbery'].mean()
+agg_assault_mean = merged_data['agg_assault'].mean()
+property_crime_mean = merged_data['property_crime_total'].mean()
+burglary_mean = merged_data['burglary'].mean()
+larceny_mean = merged_data['larceny'].mean()
+vehicle_theft_mean = merged_data['vehicle_theft'].mean()
 
 unemployment_min = merged_data['Overall_Unemployment_Rate'].min()
 unemployment_max = merged_data['Overall_Unemployment_Rate'].max()
@@ -175,21 +203,24 @@ merged_data.loc[merged_data['Overall_Unemployment_Rate'] < 5, 'Unemployment_Rate
 merged_data.loc[(merged_data['Overall_Unemployment_Rate'] >= 5) & (merged_data['Overall_Unemployment_Rate'] <= 10), 'Unemployment_Rate_Category'] = 1
 merged_data.loc[merged_data['Overall_Unemployment_Rate'] > 10, 'Unemployment_Rate_Category'] = 2
 
+merged_data['high_crime'] = (merged_data['violent_crime_total'] > merged_data['violent_crime_total'].median()).astype(int)
 
 
 st.sidebar.title("Navigation")
-option = st.sidebar.selectbox("Choose a section", ["Introduction","Data Overview", "Data Analysis", "Visualizations"])
+option = st.sidebar.selectbox("Choose a section", ["Introduction","Data Overview", "Data Analysis", "Machine Learning", "Visualizations"])
 
 if option == "Introduction":
     st.title("How to use my Streamlit app!")
     st.markdown(""" My streamlit app contains a lot of useful information and includes a lot of interactive features to do so. To start, the app is 
-    composed of three tabs on the navigation bar, which has data processing, exploratory data analysis, and visualization. Under the data 
-    processing tab, you can view the homicide data and the unemployment data. There is an interactive drop down menu, where you can choose what 
+    composed of four tabs on the navigation bar, which has data processing, exploratory data analysis, the machine learning models, and visualization. Under the data 
+    processing tab, you can view the homicide data, the unemployment data, and the crime data. There is an interactive drop down menu, where you can choose what 
     table you want to see. Then, the missing values of both tables were put into a heatmap, which is interactive as well and you can use the drop 
     down menu to choose what table you want to see. To move to the exploratory data analysis page, you can select it from the drop down menu. The 
-    first interactive feature on this page is choosing to look at specific features in a table and comparing those features. The mean value was 
-    found for relevant columns, and you can click the checkbox to display which mean values you would like to look at. Finally, you can see the 
-    visualizations by clicking on the visualization tab. 6 graphs were created, and you can click the drop down button to choose which graph you 
+    first interactive feature on this page is choosing to look at specific features in a table and comparing those features. Then there is an option to click a checkbox and see relevant statistics for specific comlumns. The mean value was 
+    found for relevant columns, and you can click the checkbox to display which mean values you would like to look at. There then is a dropdown button to view different correlation matrix's with different features. More specifcally, one has unemployment features and homicide features, and the other one has crime features and unemployment features. Moving on, the last interactive element allows you to click on specific columns to view their z-scores in a table.  
+    Moreover, you can then move into the machine learning tab to 
+Finally, you can see the 
+    visualizations by clicking on the visualization tab. 12 graphs were created, and you can click the drop down button to choose which graph you 
     want to view. """)
 
 
@@ -218,7 +249,8 @@ elif option == "Data Overview":
     
     selection_initial_table = st.selectbox("Choose a table to display:", 
                            ["Initial Homicide Table",
-                            "Initial Unemployment Table"])
+                            "Initial Unemployment Table",
+                           "Inital Crime Table"])
     if selection_initial_table == "Initial Homicide Table":
         st.write("Here is a preview of the Homicde data:")
         st.dataframe(data.head())
@@ -226,13 +258,17 @@ elif option == "Data Overview":
     elif selection_initial_table == "Initial Unemployment Table":
         st.write("Here is a preview of the Unemployment data:")
         st.dataframe(us_unemployment.head()) 
+    elif selection_initial_table == "Initial Crime Table":
+        st.write("Here is a preview of the Crime data:")
+        st.dataframe(crime.head()) 
 
     st.write("Here is a preview of the Homicide data replacing the unknown values with Na values")
     st.dataframe(data.head())
 
     selection_describing_dataset = st.selectbox("Choose a table to display:", 
                                                 ["Describing Homicide Table",
-                                                 "Describing Unemployment Table"])
+                                                 "Describing Unemployment Table",
+                                                "Describing Crime Table"])
 
     if selection_describing_dataset == "Describing Homicide Table":
         st.write("Checking the Homicide Dataset:")
@@ -241,10 +277,15 @@ elif option == "Data Overview":
     elif selection_describing_dataset == "Describing Unemployment Table":
         st.write("Checking the Unemployment data:")
         st.dataframe(us_unemployment.describe()) 
+    
+    elif selection_describing_dataset == "Describing Crime Table":
+        st.write("Checking the Unemployment data:")
+        st.dataframe(crime.describe()) 
 
     selection_missingvalues_heatmap = st.selectbox("Choose a graph to display:", 
                                ["Heatmap of Missing Values in Homicide Dataset",
-                                "Heatmap of Missing Values in Unemployment Dataset"])
+                                "Heatmap of Missing Values in Unemployment Dataset",
+                               "Heatmap of Missing Values in Crime Dataset"])
 
     if selection_missingvalues_heatmap == "Heatmap of Missing Values in Homicide Dataset":
         missing_values = data.isnull() 
@@ -260,6 +301,15 @@ elif option == "Data Overview":
         plt.figure(figsize=(10, 10))
         sns.heatmap(missing_values, cbar=False, cmap='viridis', yticklabels=False)
         plt.title('Heatmap of Missing Values in Unemployment Dataset', fontsize=12)
+        plt.xlabel('Columns')
+        plt.ylabel('Rows')
+        st.pyplot(plt.gcf()) 
+
+    elif selection_missingvalues_heatmap == "Heatmap of Missing Values in Crime Dataset":
+        missing_values = crime.isnull() 
+        plt.figure(figsize=(10, 10))
+        sns.heatmap(missing_values, cbar=False, cmap='viridis', yticklabels=False)
+        plt.title('Heatmap of Missing Values in Crime Dataset', fontsize=12)
         plt.xlabel('Columns')
         plt.ylabel('Rows')
         st.pyplot(plt.gcf()) 
@@ -285,6 +335,12 @@ elif option == "Data Overview":
 
 elif option == "Data Analysis":
     st.title("Summary of Data Analysis")
+
+    selected_columns = st.multiselect(
+    "Select columns for analysis",
+    options=merged_data.columns)
+    st.write("Selected columns:", selected_columns)
+
 
 
     selected_features = st.multiselect("Select Features to Display for the merged Dataset", options=merged_data.columns.tolist())
@@ -314,6 +370,37 @@ elif option == "Data Analysis":
 
     if st.checkbox("Show maximum American Overall Unemployment Rate"):
         st.write("The max unemployment rate is",unemployment_max)
+    
+    if st.checkbox("Show mean American Prisoner Count"):
+        st.write("The mean American Prisoner Count is",prisoner_mean)
+    if st.checkbox("Show mean American State Population"):
+        st.write("The mean American state Population is",population_mean)
+
+    if st.checkbox("Show mean American Violent Crime Count"):
+        st.write("The mean American Violent Crime Count is",violent_crime_mean)
+
+    if st.checkbox("Show mean American Manslaughter Incident Count"):
+        st.write("The mean American Manslaughter Incident Count is",manslaughter_mean)
+
+
+    if st.checkbox("Show mean American Robbery Count"):
+        st.write("The mean American Robbery Count is",robbery_mean)
+
+    if st.checkbox("Show mean American Agg Assault Count"):
+        st.write("The mean American Agg Assault Count is",agg_assault_mean)
+
+    if st.checkbox("Show mean American Property Crime Count"):
+        st.write("The mean American Prisoner Count is",property_crime_mean)
+
+    if st.checkbox("Show mean American Burglary Count"):
+        st.write("The mean American Burglary Count is",burglary_mean)
+
+    if st.checkbox("Show mean American Larceny Count"):
+        st.write("The mean American Prisoner Count is",larceny_mean)
+
+
+    if st.checkbox("Show mean American Vehicle Theft Count"):
+        st.write("The mean American Vehicle Theft Count is",vehicle_theft_mean)
 
     st.write(victim_race_counts)
     st.write(victim_gender_counts)
@@ -323,29 +410,194 @@ elif option == "Data Analysis":
     st.write(victim_ethnicity_count)
     st.write(merged_data[['White', 'Black', 'Hispanic', 'Men', 'Women']].describe())
 
-    selected_features = ['year', 'Overall_Unemployment_Rate', 'Victim Count', 
-                         'Victim_Sex_encoded', 'Perpetrator_Sex_encoded']
+    selection_cor_matrix = st.selectbox("Choose a correlation matrix to display:", 
+                           ["Correlation Matrix: Homicide Dataset features",
+                            "Correlation Matrix: Crime Dataset features"])
+    if selection_cor_matrix == "Correlation Matrix: Homicide Dataset features":
+        selected_features = ['year', 'Overall_Unemployment_Rate', 'Victim Count', 'Victim_Sex_encoded', 'Perpetrator_Sex_encoded']
+        correlation_matrix = merged_data[selected_features].corr().values
 
-    correlation_matrix = merged_data[selected_features].corr().values
+        fig_corr = ff.create_annotated_heatmap(z=correlation_matrix, x=selected_features, y=selected_features)
+        st.write("Correlation matrix with selected features")
+        st.plotly_chart(fig_corr)
+        
 
-    fig_corr = ff.create_annotated_heatmap(z=correlation_matrix, x=selected_features, y=selected_features)
-    st.write("Correlation matrix with selected features")
-    st.plotly_chart(fig_corr)
+    elif selection_cor_matrix == "Correlation Matrix: Crime Dataset features":
+        selected_features2 = ['year', 'Overall_Unemployment_Rate', 'burglary', 
+                     'agg_assault', 'murder_manslaughter']
 
+        correlation_matrix2 = merged_data[selected_features2].corr().values
 
-    numeric_cols = merged_data.select_dtypes(include=[np.number]).columns#This line selects all the numeric columns from the dataset
+        fig_corr2 = ff.create_annotated_heatmap(z=correlation_matrix2, 
+                                  x=selected_features2, 
+                                  y=selected_features2)
 
-    merged_data_zscore = merged_data[numeric_cols].apply(zscore)#This line applies z-score scaling to the numeric columns. This scales the data so each column has a mean of 0 and a standard deviation of 1(I am pretty sure based on Tuesday's lecture). 
-
-    for i in numeric_cols:
-    # Outliers are values where the z-score is less than -3 or greater than 3
-        outliers = merged_data_zscore[(merged_data_zscore[i] < -3) | (merged_data_zscore[i] > 3)]
+        st.write("Correlation matrix with selected features")
+        st.plotly_chart(fig_corr2)        
     
-    # Print the column name and the number of outliers
-        st.write("The z-score of every column")
-        st.write(f"Column: {i}, Number of outliers: {len(outliers)}")
+
+    numeric_cols = merged_data.select_dtypes(include=[np.number]).columns
+
+    st.title("Interactive Z-Score Analysis")
+
+    interaction_type = st.radio(
+        "How would you like to select a column for Z-score analysis?",
+        options=["Select from dropdown", "Type column name"])
+
+    if interaction_type == "Select from dropdown":
+        selected_column = st.selectbox("Select a column:", numeric_cols)
+    else:
+        selected_column = st.text_input("Type the column name:")
+
+    if selected_column in numeric_cols:
+        st.subheader(f"Z-Score Analysis for Column: {selected_column}")
+    
+        z_scores = zscore(merged_data[selected_column])
+        merged_data[f"{selected_column}_zscore"] = z_scores  
+    
+        st.write(merged_data[[selected_column, f"{selected_column}_zscore"]])
+        outliers = merged_data[(z_scores < -3) | (z_scores > 3)]
+        st.write(f"Number of Outliers in {selected_column}: {len(outliers)}")
+        st.write(outliers)
+    else:
+        st.warning("Please select or type a valid numeric column.")
 
 
+elif option == "Machine Learning":
+    st.title("Summary of Machine Learning Models")
+    X = merged_data[['Overall_Unemployment_Rate', 'state_population', 'violent_crime_total']]
+    y = merged_data['violent_crime_total']
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    reg = LinearRegression()
+    reg.fit(X_train, y_train)
+    print('Coefficients: ', reg.coef_)
+    print('Variance score: {}'.format(reg.score(X_test, y_test)))
+
+    y_pred = reg.predict(X_test)
+
+
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+    #knn and rfr
+    X = merged_data[['Overall_Unemployment_Rate', 'state_population', 'burglary']]
+    y = merged_data['violent_crime_total']
+
+    X_train_rf, X_test_rf, y_train_rf, y_test_rf = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Initialize and train a Random Forest Regressor
+    rf = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=42)
+    rf.fit(X_train_rf, y_train_rf)
+
+    # Predict ratings using the Random Forest model
+    y_pred_rf = rf.predict(X_test_rf)
+
+    # Evaluate the Random Forest model using various metrics
+    mse_rf = mean_squared_error(y_test_rf, y_pred_rf)
+    rmse_rf = root_mean_squared_error(y_test_rf, y_pred_rf)
+    mae_rf = mean_absolute_error(y_test_rf, y_pred_rf)
+    r2_rf = r2_score(y_test_rf, y_pred_rf)
+
+    # Add actual and predicted ratings to the test set for visualization
+    df_test_rf = X_test_rf.copy()
+    df_test_rf['Actual'] = y_test_rf.values
+    df_test_rf['Predicted'] = y_pred_rf
+
+
+    # Standardize features for the K-Nearest Neighbors (KNN) model
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # Split the dataset into training and testing sets for the KNN model
+    X_train_knn, X_test_knn, y_train_knn, y_test_knn = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+    # Initialize and train a KNN Regressor
+    knn = KNeighborsRegressor(n_neighbors=5, n_jobs=-1)
+    knn.fit(X_train_knn, y_train_knn)
+
+    # Predict ratings using the KNN model
+    y_pred_knn = knn.predict(X_test_knn)
+
+    # Evaluate the KNN model using various metrics
+    mse_knn = mean_squared_error(y_test_knn, y_pred_knn)
+    rmse_knn = root_mean_squared_error(y_test_knn, y_pred_knn)
+    mae_knn = mean_absolute_error(y_test_knn, y_pred_knn)
+    r2_knn = r2_score(y_test_knn, y_pred_knn)
+
+    # Print KNN model performance metrics
+    print('\nKNN Regressor:')
+    print('MSE:', mse_knn)
+    print('RMSE:', rmse_knn)
+    print('MAE:', mae_knn)
+    print('R^2:', r2_knn)
+
+    # Prepare a DataFrame for KNN test results
+    df_test_knn = pd.DataFrame(X_test_knn, columns=X.columns)
+    df_test_knn['Actual'] = y_test_knn.values
+    df_test_knn['Predicted'] = y_pred_knn
+
+    # Combine metrics for both models into a summary DataFrame
+    metrics = {
+        'Model': ['Random Forest', 'KNN'],
+        'MSE': [mse_rf, mse_knn],
+        'RMSE': [rmse_rf, rmse_knn],
+        'MAE': [mae_rf, mae_knn],
+        'R2': [r2_rf, r2_knn]}
+    metrics_df = pd.DataFrame(metrics)
+
+    # Create subplots to visualize model performance comparison
+    fig = make_subplots(rows=2, cols=2, subplot_titles=('MSE', 'RMSE', 'MAE', 'R²'))
+
+    # Add performance metrics to the subplots as bar charts
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MSE'], text=metrics_df['MSE']), row=1, col=1)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['RMSE'], text=metrics_df['RMSE']), row=1, col=2)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MAE'], text=metrics_df['MAE']), row=2, col=1)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['R2'], text=metrics_df['R2']), row=2, col=2)
+
+
+    fig.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+    fig.update_layout(title_text='Model Performance Comparison', showlegend=False, height=700)
+
+    model_choice = st.selectbox("Choose a model:", ["Linear Regression", "Random Forest", "KNN"])
+
+    if model_choice == "Linear Regression":
+        st.write(f"Linear Regression MSE: {mse:.2f}")
+        st.write(f"Linear Regression R-squared: {r2:.2f}")
+    elif model_choice == "Random Forest":
+        st.write(f"Random Forest MSE: {mse_rf:.2f}")
+        st.write(f"Random Forest RMSE: {rmse_rf:.2f}")
+        st.write(f"Random Forest MAE: {mae_rf:.2f}")
+        st.write(f"Random Forest R^2: {r2_rf:.2f}")
+    elif model_choice == "KNN":
+        st.write(f"KNN MSE: {mse_knn:.2f}")
+        st.write(f"KNN RMSE: {rmse_knn:.2f}")
+        st.write(f"KNN MAE: {mae_knn:.2f}")
+        st.write(f"KNN R^2: {r2_knn:.2f}")
+
+
+
+    selection_graph_model = st.selectbox("Choose a graph to display:",
+                                         ["Linear Regression",
+                                         "KNN and RFR"])
+    if selection_graph_model == "Linear Regression":
+        plt.figure(figsize=(8, 6))
+        plt.scatter(y_test, y_pred, color='blue', edgecolor='k', alpha=0.6)
+        plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', lw=2) 
+        plt.xlabel("Actual Violent Crime Total")
+        plt.ylabel("Predicted Violent Crime Total")
+        plt.title("Actual vs Predicted: Linear Regression Model")
+        st.pyplot(plt.gcf())
+    elif selection_graph_model == "KNN and RFR":
+        fig = make_subplots(rows=2, cols=2, subplot_titles=('MSE', 'RMSE', 'MAE', 'R²'))
+        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MSE'], text=metrics_df['MSE']), row=1, col=1)
+        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['RMSE'], text=metrics_df['RMSE']), row=1, col=2)
+        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MAE'], text=metrics_df['MAE']), row=2, col=1)
+        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['R2'], text=metrics_df['R2']), row=2, col=2)
+        fig.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+        fig.update_layout(title_text='Model Performance Comparison', showlegend=False, height=700)
+        st.plotly_chart(fig)
+        
 
 
 else:
@@ -356,7 +608,13 @@ else:
                             "Linear Regression for Unemployment Rates based on Highest Degree",
                             "Homicide Rates vs. Unemployment Rates",
                             "2D KDE Plot of Perpetrator Sex and Unemployment Rate",
-                            "Average Homicide Victim Count by State"])
+                            "Average Homicide Victim Count by State",
+                           "2D KDE Plot of High Crime vs Overall Unemployment Rate",
+                           "Violent Crime Rates vs Homicide Victim Counts by High Crime",
+                           "Average Manslaughter Count by State and Unemployment Rate",
+                           "State population, Unemployment Rate, and Crime Rate",
+                           "Burglary, Agg Assault, and Murder Manslaughter",
+                           "Distribution of Unemployment Rate by High Crime"])
 
 # Based on the selected option, render the corresponding graph
     if selection_graph_eda == "Histogram of Perpetrator Sex and Unemployment Rate Category":
@@ -457,4 +715,63 @@ else:
         )
         st.plotly_chart(fig6)
 
+    elif selection_graph_eda == "2D KDE Plot of High Crime vs Overall Unemployment Rate":
+        fig7 = sns.kdeplot(data=merged_data, x="high_crime", y="Overall_Unemployment_Rate", fill=True)
 
+        plt.title("2D KDE Plot of High Crime vs Overall Unemployment Rate")
+        plt.xlabel("High Crime")
+        plt.ylabel("Overall Unemployment Rate")
+        st.pyplot(plt.gcf())
+
+    elif selection_graph_eda == "Violent Crime Rates vs Homicide Victim Counts by High Crime":
+        fig8 = px.scatter(
+        merged_data,
+        x="violent_crime_total",
+        y="Victim Count",
+        size="state_population",
+        color="high_crime",
+        title="Violent Crime Rates vs Homicide Victim Counts by High Crime",
+        labels={"violent_crime_total": "Violent Crime Rate", "victim_count": "Homicide Victim Count"})
+
+        st.plotly_chart(fig8)
+
+    elif selection_graph_eda == "Average Manslaughter Count by State and Unemployment Rate":
+        fig9 = px.bar(
+        merged_data.groupby('State')[['murder_manslaughter', 'Overall_Unemployment_Rate']].mean().reset_index(),
+        x='State',
+        y='murder_manslaughter',
+        color='Overall_Unemployment_Rate',
+        title='Average Manslaughter Count by State and Unemployment Rate',
+        labels={'State': 'State', 'murder_manslaughter': ' Manslaughter Cases'})
+        st.plotly_chart(fig9)
+
+    elif selection_graph_eda == "State population, Unemployment Rate, and Crime Rate":
+        fig10 = px.scatter_3d(
+        merged_data,
+        x="state_population",
+        y="Overall_Unemployment_Rate",
+        z="violent_crime_total",
+        color="high_crime",
+        title="State population, Unemployment Rate, and Crime Rate",
+        labels={"state_population": "Population", "Overall_Unemployment Rate": "Unemployment Rate", "violent_crime_total": "Violent Crime Rate"})
+        st.plotly_chart(fig10)
+
+
+
+    elif selection_graph_eda == "Burglary, Agg Assault, and Murder Manslaughter":
+        fig11 = px.scatter_3d(
+        merged_data,
+        x="burglary",
+        y="agg_assault",
+        z="murder_manslaughter",
+        color="Perpetrator Sex",
+        title="Burglary, Agg Assault, and Murder Manslaughter",
+        labels={"burglary": "Burglary", "agg_assault": "Assault", "murder_manslaughter": "Mansluaghter"})
+        st.plotly_chart(fig11)
+
+    elif selection_graph_eda == "Distribution of Unemployment Rate by High Crime":
+        fig12 = px.histogram(merged_data, x='Unemployment_Rate_Category', color='high_crime', 
+                    title='Distribution of Unemployment Rate by High Crime', 
+                    barmode='group',
+                    labels={'Unemployment_Rate_Category': 'Unemployment Rate Catgeory'})
+        st.plotly_chart(fig12)
