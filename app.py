@@ -24,6 +24,7 @@ from sklearn.metrics import (
     root_mean_squared_error, 
 )
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import cross_val_score
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
 from category_encoders import LeaveOneOutEncoder
@@ -472,8 +473,7 @@ elif option == "Machine Learning":
 
     reg = LinearRegression()
     reg.fit(X_train, y_train)
-    print('Coefficients: ', reg.coef_)
-    print('Variance score: {}'.format(reg.score(X_test, y_test)))
+
 
     y_pred = reg.predict(X_test)
 
@@ -525,12 +525,17 @@ elif option == "Machine Learning":
     mae_knn = mean_absolute_error(y_test_knn, y_pred_knn)
     r2_knn = r2_score(y_test_knn, y_pred_knn)
 
-    # Print KNN model performance metrics
-    print('\nKNN Regressor:')
-    print('MSE:', mse_knn)
-    print('RMSE:', rmse_knn)
-    print('MAE:', mae_knn)
-    print('R^2:', r2_knn)
+
+    linear_cv_scores = cross_val_score(reg, X, y, cv=5, scoring='r2')
+    rf_cv_scores = cross_val_score(rf, X, y, cv=5, scoring='r2')
+    knn_cv_scores = cross_val_score(knn, X_scaled, y, cv=5, scoring='r2')
+
+    st.write("Linear Regression CV R² scores:", linear_cv_scores)
+    st.write("Random Forest CV R² scores:", rf_cv_scores)
+    st.write("KNN CV R² scores:", knn_cv_scores)
+    st.write("Average CV R² for Linear Regression:", linear_cv_scores.mean())
+    st.write("Average CV R² for Random Forest:", rf_cv_scores.mean())
+    st.write("Average CV R² for KNN:", knn_cv_scores.mean())
 
     # Prepare a DataFrame for KNN test results
     df_test_knn = pd.DataFrame(X_test_knn, columns=X.columns)
