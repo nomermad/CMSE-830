@@ -3,4 +3,5 @@ imbalanced-learn
 plotly
 seaborn
 pandas
+category_encoders
 
