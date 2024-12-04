@@ -44,7 +44,7 @@ def load_data():
         
 
         with z.open('database.csv') as csv_file:
-            data = pd.read_csv(csv_file, memory_map = True)
+            data = pd.read_csv(csv_file, low_memory=False)
     
     return data
 
