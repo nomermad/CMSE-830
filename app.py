@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 import plotly.express as px
 from scipy.stats import zscore
-from sklearn.linear_model import LinearRegression # this could be any ML method
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer, SimpleImputer
@@ -219,10 +219,15 @@ if option == "Introduction":
     down menu to choose what table you want to see. To move to the exploratory data analysis page, you can select it from the drop down menu. The 
     first interactive feature on this page is choosing to look at specific features in a table and comparing those features. Then there is an option to click a checkbox and see relevant statistics for specific comlumns. The mean value was 
     found for relevant columns, and you can click the checkbox to display which mean values you would like to look at. There then is a dropdown button to view different correlation matrix's with different features. More specifcally, one has unemployment features and homicide features, and the other one has crime features and unemployment features. Moving on, the last interactive element allows you to click on specific columns to view their z-scores in a table.  
-    Moreover, you can then move into the machine learning tab to 
+    Moreover, you can then move into the machine learning tab to view machine learning models, such as linear regression, knn, and rfr. There is the option to view statistics from the different models or view the graphs using the models. The models were trained and tested on specific features. 
 Finally, you can see the 
     visualizations by clicking on the visualization tab. 12 graphs were created, and you can click the drop down button to choose which graph you 
     want to view. """)
+    st.title("Citations")
+    st.markdown(""" Homicide Reports from 1980-2014 from Kaggle, link https://www.kaggle.com/datasets/murderaccountability/homicide-reports
+US Unemployment Dataset from 2010-2020, link https://www.kaggle.com/datasets/aniruddhasshirahatti/us-unemployment-dataset-2010-2020
+Crime and Incarceration in the United States, link https://www.kaggle.com/datasets/christophercorrea/prisoners-and-crime-in-united-states""")
+    
 
 
 elif option == "Data Overview":
@@ -247,7 +252,7 @@ elif option == "Data Overview":
     * **Encoding Categorical Columns:** I encoded the columns "Perpetrator Sex", "Perpetrator Race", "Victim Sex", and "Victim Race". If the 
     perpetrator's sex is male, the column takes a 1, and a 0 if the perpetrator's sex is female. If the victim's sex is female, it takes a 0, and a 
     1 if the victim's sex is male. In both datasets, the months were changed from January-December to 1-12, to allow for easier analysis. """)
-    
+    st.cache_data()
     selection_initial_table = st.selectbox("Choose a table to display:", 
                            ["Initial Homicide Table",
                             "Initial Unemployment Table",
