@@ -14,6 +14,19 @@ from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer, SimpleImputer
 from sklearn.preprocessing import StandardScaler, RobustScaler
 import plotly.figure_factory as ff
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.model_selection import cross_val_score
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+from sklearn.metrics import (
+    mean_squared_error,
+    mean_absolute_error,
+    r2_score,
+    root_mean_squared_error, 
+)
+
 import zipfile
 
 st.title("Demographic and Economic Patterns in Homicide Incidents")
@@ -178,17 +191,19 @@ merged_data.loc[merged_data['Overall_Unemployment_Rate'] > 10, 'Unemployment_Rat
 
 
 st.sidebar.title("Navigation")
-option = st.sidebar.selectbox("Choose a section", ["Introduction","Data Overview", "Data Analysis", "Visualizations"])
+option = st.sidebar.selectbox("Choose a section", ["Introduction","Data Overview", "Data Analysis", "Machine Learning","Visualizations"])
 
 if option == "Introduction":
     st.title("How to use my Streamlit app!")
     st.markdown(""" My streamlit app contains a lot of useful information and includes a lot of interactive features to do so. To start, the app is 
-    composed of three tabs on the navigation bar, which has data processing, exploratory data analysis, and visualization. Under the data 
+    composed of four tabs on the navigation bar, which has data processing, exploratory data analysis, the machine learning models, and visualization. Under the data 
     processing tab, you can view the homicide data and the unemployment data. There is an interactive drop down menu, where you can choose what 
     table you want to see. Then, the missing values of both tables were put into a heatmap, which is interactive as well and you can use the drop 
     down menu to choose what table you want to see. To move to the exploratory data analysis page, you can select it from the drop down menu. The 
-    first interactive feature on this page is choosing to look at specific features in a table and comparing those features. The mean value was 
-    found for relevant columns, and you can click the checkbox to display which mean values you would like to look at. Finally, you can see the 
+    first interactive feature on this page is choosing to look at specific features in a table and comparing those features. Then there is an option to click a checkbox and see relevant statistics for specific comlumns. The mean value was 
+    found for relevant columns, and you can click the checkbox to display which mean values you would like to look at. There then is a dropdown button to view different correlation matrix's with different features. More specifcally, one has unemployment features and homicide features, and the other one has crime features and unemployment features. Moving on, the last interactive element allows you to click on specific columns to view their z-scores in a table.  
+    Moreover, you can then move into the machine learning tab to view machine learning models, such as linear regression, knn, and rfr. There is the option to view statistics from the different models or view the graphs using the models. The models were trained and tested on specific features. 
+Finally, you can see the 
     visualizations by clicking on the visualization tab. 6 graphs were created, and you can click the drop down button to choose which graph you 
     want to view. """)
 
@@ -295,10 +310,7 @@ elif option == "Data Analysis":
     these variables, as it did not make sense to explore the mean
     * **Correlation Graph:** A correlation matrix was created using relevant features. Upon looking at the correlation, there was almost no 
     correlation between the selected features from the unemployment dataframe and the homicide dataframe.
-    * **Z-Score Outliers:** The columns were scaled using the z-score and the outliers were printed, which were how many rows were less than -3 or 
-    greater than 3 after scaling. The columns with outliers were Victim Age with 125 outliers, Perpetrator Age with 458 outliers, Victim Count with 
-    1016 outliers, Perpetrator Count with 1139 outliers, perpetrator ethnicity with 3807 outliers, Unemployment Rate Category with 3610 outliers, 
-    and Perpetrator_Sex_encoded with 3230 outliers.
+    * **Z-Score Outliers:** The columns were scaled using the z-score and the outliers were calculated. You are able to choose what outliers you want to see by selecting the column or typing its name in.
     * **Masking:** A new column was created that assigned a category for the unemployment rates. 0%-5% is low, 5%-10% is middle, and anything 
     greater than 10% is a high unemployment rate. 
     * **Figure 1:** Figure one is a plot distribution that shows the perpetrator's sex, with the range/category of unemployment they may fall 
@@ -315,21 +327,10 @@ elif option == "Data Analysis":
     victims sex are males, with a higher unemployment rate. 
     * **Figure 6:** Figure six conveys the relationship of average homicide victim count by state and unemployment rate. It is a bar graph that has 
     states on the x axis and the average victim count for each state on the y axis. The bar graph is colored by unemployment. Alabama had the 
-    highest unemployment rate, but had the lowest average victim count.
-    * **What I got from the Data/What was I hoping to find:** What I was hoping to find was if there was a relationship between patterns in 
-    unemployment and homicide trends. 
-    * **What my overall results show:** There is no overall impact of unemployment rates on homicide trends, however a majority of perpetrators are 
-    male. The kde visualization suggests that a majority of the data points are male perpetrators with a middle/high unemployment rate. Ultimately, 
-    there is a relationship between the sex of an individual a
-    * **Ways to Improve:** One way I could have improved the project was focusing on class distributions. There may not have been equal class 
-    sizes, which could have impacted the results I got. My findings suggest that other factors, such as social or cultural factors, may play a 
-    stronger role in homicide incidents. Moreover, this gives an opportunity for further exploration of the data, by potentially exploring 
-    different patterns. The findings also suggest that there may be a relationship between the data, but it could be a more complex or nonlinear 
-    relationship. Polynomial regression or logistic regression may capture a better relationship. The homicide dataset was also missing a 
-    significant amount of categorical data points. While simple input was used to fill in the missing points, that could have also contributed to 
-    the relationship and finding a lack of correlation. Furthermore, only specific categorical variables were encoded and looked at, and encoding 
-    those and using different features such as if the crime was unsolved, weapon type, or the relationship between the perpetrator and victim may 
-    have changed the correlation""")
+    highest unemployment rate, but had the lowest average victim count.""")
+
+    selected_columns = st.multiselect("Select columns for analysis",options=merged_data.columns)
+    st.write("Selected columns:", selected_columns)
 
 
     selected_features = st.multiselect("Select Features to Display for the merged Dataset", options=merged_data.columns.tolist())
@@ -381,20 +382,170 @@ elif option == "Data Analysis":
     st.dataframe(victim_age_by_sex)
 
 
-    numeric_cols = merged_data.select_dtypes(include=[np.number]).columns#This line selects all the numeric columns from the dataset
+    numeric_cols = merged_data.select_dtypes(include=[np.number]).columns
 
-    merged_data_zscore = merged_data[numeric_cols].apply(zscore)#This line applies z-score scaling to the numeric columns. This scales the data so each column has a mean of 0 and a standard deviation of 1(I am pretty sure based on Tuesday's lecture). 
+    st.title("Interactive Z-Score Analysis")
 
-    for i in numeric_cols:
-    # Outliers are values where the z-score is less than -3 or greater than 3
-        outliers = merged_data_zscore[(merged_data_zscore[i] < -3) | (merged_data_zscore[i] > 3)]
+    interaction_type = st.radio(
+        "How would you like to select a column for Z-score analysis?",
+        options=["Select from dropdown", "Type column name"])
+
+    if interaction_type == "Select from dropdown":
+        selected_column = st.selectbox("Select a column:", numeric_cols)
+    else:
+        selected_column = st.text_input("Type the column name:")
+
+    if selected_column in numeric_cols:
+        st.subheader(f"Z-Score Analysis for Column: {selected_column}")
     
-    # Print the column name and the number of outliers
-        st.write("The z-score of every column")
-        st.write(f"Column: {i}, Number of outliers: {len(outliers)}")
+        z_scores = zscore(merged_data[selected_column])
+        merged_data[f"{selected_column}_zscore"] = z_scores  
+    
+        st.write(merged_data[[selected_column, f"{selected_column}_zscore"]])
+        outliers = merged_data[(z_scores < -3) | (z_scores > 3)]
+        st.write(f"Number of Outliers in {selected_column}: {len(outliers)}")
+        st.write(outliers)
+    else:
+        st.warning("Please select or type a valid numeric column.")
+
+elif option == "Machine Learning":
+    st.title("Summary of Machine Learning Models")
+    X = merged_data[['Overall_Unemployment_Rate', 'Victim_Sex_encoded', 'Perpetrator_Sex_encoded']]
+    y = merged_data['Victim Count']
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    reg = LinearRegression()
+    reg.fit(X_train, y_train)
+
+
+    y_pred = reg.predict(X_test)
+
+
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+    #knn and rfr
+    X = merged_data[['Overall_Unemployment_Rate', 'Victim_Sex_encoded', 'Perpetrator_Sex_encoded']]
+    y = merged_data['Victim Count']
+    X_train_rf, X_test_rf, y_train_rf, y_test_rf = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Initialize and train a Random Forest Regressor
+    rf = RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=42)
+    rf.fit(X_train_rf, y_train_rf)
+
+    # Predict ratings using the Random Forest model
+    y_pred_rf = rf.predict(X_test_rf)
+
+    # Evaluate the Random Forest model using various metrics
+    mse_rf = mean_squared_error(y_test_rf, y_pred_rf)
+    rmse_rf = root_mean_squared_error(y_test_rf, y_pred_rf)
+    mae_rf = mean_absolute_error(y_test_rf, y_pred_rf)
+    r2_rf = r2_score(y_test_rf, y_pred_rf)
+
+    # Add actual and predicted ratings to the test set for visualization
+    df_test_rf = X_test_rf.copy()
+    df_test_rf['Actual'] = y_test_rf.values
+    df_test_rf['Predicted'] = y_pred_rf
+
+
+    # Standardize features for the K-Nearest Neighbors (KNN) model
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # Split the dataset into training and testing sets for the KNN model
+    X_train_knn, X_test_knn, y_train_knn, y_test_knn = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+    # Initialize and train a KNN Regressor
+    knn = KNeighborsRegressor(n_neighbors=5, n_jobs=-1)
+    knn.fit(X_train_knn, y_train_knn)
+
+    # Predict ratings using the KNN model
+    y_pred_knn = knn.predict(X_test_knn)
+
+    # Evaluate the KNN model using various metrics
+    mse_knn = mean_squared_error(y_test_knn, y_pred_knn)
+    rmse_knn = root_mean_squared_error(y_test_knn, y_pred_knn)
+    mae_knn = mean_absolute_error(y_test_knn, y_pred_knn)
+    r2_knn = r2_score(y_test_knn, y_pred_knn)
+
+
+    linear_cv_scores = cross_val_score(reg, X, y, cv=5, scoring='r2')
+    rf_cv_scores = cross_val_score(rf, X, y, cv=5, scoring='r2')
+    knn_cv_scores = cross_val_score(knn, X_scaled, y, cv=5, scoring='r2')
+
+    st.write("Linear Regression CV R² scores:", linear_cv_scores)
+    st.write("Random Forest CV R² scores:", rf_cv_scores)
+    st.write("KNN CV R² scores:", knn_cv_scores)
+    st.write("Average CV R² for Linear Regression:", linear_cv_scores.mean())
+    st.write("Average CV R² for Random Forest:", rf_cv_scores.mean())
+    st.write("Average CV R² for KNN:", knn_cv_scores.mean())
+
+    # Prepare a DataFrame for KNN test results
+    df_test_knn = pd.DataFrame(X_test_knn, columns=X.columns)
+    df_test_knn['Actual'] = y_test_knn.values
+    df_test_knn['Predicted'] = y_pred_knn
+
+    # Combine metrics for both models into a summary DataFrame
+    metrics = {
+        'Model': ['Random Forest', 'KNN'],
+        'MSE': [mse_rf, mse_knn],
+        'RMSE': [rmse_rf, rmse_knn],
+        'MAE': [mae_rf, mae_knn],
+        'R2': [r2_rf, r2_knn]}
+    metrics_df = pd.DataFrame(metrics)
+
+    # Create subplots to visualize model performance comparison
+    fig = make_subplots(rows=2, cols=2, subplot_titles=('MSE', 'RMSE', 'MAE', 'R²'))
+
+    # Add performance metrics to the subplots as bar charts
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MSE'], text=metrics_df['MSE']), row=1, col=1)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['RMSE'], text=metrics_df['RMSE']), row=1, col=2)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MAE'], text=metrics_df['MAE']), row=2, col=1)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['R2'], text=metrics_df['R2']), row=2, col=2)
+
+
+    fig.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+    fig.update_layout(title_text='Model Performance Comparison', showlegend=False, height=700)
+
+    model_choice = st.selectbox("Choose a model:", ["Linear Regression", "Random Forest", "KNN"])
+
+    if model_choice == "Linear Regression":
+        st.write(f"Linear Regression MSE: {mse:.2f}")
+        st.write(f"Linear Regression R-squared: {r2:.2f}")
+    elif model_choice == "Random Forest":
+        st.write(f"Random Forest MSE: {mse_rf:.2f}")
+        st.write(f"Random Forest RMSE: {rmse_rf:.2f}")
+        st.write(f"Random Forest MAE: {mae_rf:.2f}")
+        st.write(f"Random Forest R^2: {r2_rf:.2f}")
+    elif model_choice == "KNN":
+        st.write(f"KNN MSE: {mse_knn:.2f}")
+        st.write(f"KNN RMSE: {rmse_knn:.2f}")
+        st.write(f"KNN MAE: {mae_knn:.2f}")
+        st.write(f"KNN R^2: {r2_knn:.2f}")
 
 
 
+    selection_graph_model = st.selectbox("Choose a graph to display:",
+                                         ["Linear Regression",
+                                         "KNN and RFR"])
+    if selection_graph_model == "Linear Regression":
+        plt.figure(figsize=(8, 6))
+        plt.scatter(y_test, y_pred, color='blue', edgecolor='k', alpha=0.6)
+        plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', lw=2) 
+        plt.xlabel("Actual Victim Count Total")
+        plt.ylabel("Predicted Victim Count Total")
+        plt.title("Actual vs Predicted: Linear Regression Model")
+        st.pyplot(plt.gcf())
+    elif selection_graph_model == "KNN and RFR":
+        fig = make_subplots(rows=2, cols=2, subplot_titles=('MSE', 'RMSE', 'MAE', 'R²'))
+        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MSE'], text=metrics_df['MSE']), row=1, col=1)
+        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['RMSE'], text=metrics_df['RMSE']), row=1, col=2)
+        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MAE'], text=metrics_df['MAE']), row=2, col=1)
+        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['R2'], text=metrics_df['R2']), row=2, col=2)
+        fig.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+        fig.update_layout(title_text='Model Performance Comparison', showlegend=False, height=700)
+        st.plotly_chart(fig)
+        
 
 else:
     st.write("Show visualizations here.")
