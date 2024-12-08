@@ -279,8 +279,6 @@ elif option == "Data Overview":
         plt.ylabel('Rows')
         st.pyplot(plt.gcf()) 
 
-    st.write('Checking what the columns are')
-    st.dataframe(merged_data.columns)
 
     st.write(f"MICE Imputation Results: Mean Squared Error: {mse_mice:.4f}, R2 Score: {r2_mice:.4f}")
     st.write(f"Mean Imputation Results: Mean Squared Error: {mse_mean:.4f}, R2 Score: {r2_mean:.4f}")
@@ -337,38 +335,50 @@ elif option == "Data Analysis":
     if selected_features:
         st.write(merged_data[selected_features])
 
-    if st.checkbox("Show average unemployment rate for White Americans"):
-        st.write("The average unemployment rate for White Americans is", white_mean)
+    numeric_cols = merged_data.select_dtypes(include=[np.number]).columns
 
-    if st.checkbox("Show average unemployment rate for Black Americans"):
-        st.write("The average unemployment rate for Black Americans is", black_mean)
+    selected_column = st.selectbox("Select a numeric column:", numeric_cols)
 
-    if st.checkbox("Show average unemployment rate for Hispanic Americans"):
-        st.write("The average unemployment rate for Hispanic Americans is", hispanic_mean)
+    stat_option = st.selectbox(
+        "Select a statistic to calculate:",
+        ["Count", "Mean", "Median", "Min", "Max"])
 
-    if st.checkbox("Show average unemployment rate for Asian Americans"):
-        st.write("The average unemployment rate for Asian Americans is", asian_mean)
+    if st.button("Calculate"):
+        if stat_option == "Count":
+            result = merged_data[selected_column].count()
+        elif stat_option == "Mean":
+            result = merged_data[selected_column].mean()
+        elif stat_option == "Median":
+            result = merged_data[selected_column].median()
+        elif stat_option == "Min":
+            result = merged_data[selected_column].min()
+        elif stat_option == "Max":
+            result = merged_data[selected_column].max()
 
-    if st.checkbox("Show average unemployment rate for Men"):
-        st.write("The average unemployment rate for Men is", men_mean)
+        st.write(f"The {stat_option.lower()} of column **{selected_column}** is: **{result}**")
 
-    if st.checkbox("Show average unemployment rate for Women"):
-        st.write("The average unemployment rate for Women is", women_mean)
 
-    if st.checkbox("Show minimum American Overall Unemployment Rate"):
-        st.write("The min unemployment rate is",unemployment_min)
+    if st.checkbox("Show Victim Race Counts"):
+        st.write("The Victim Race Count is", victim_race_counts)
 
-    if st.checkbox("Show maximum American Overall Unemployment Rate"):
-        st.write("The max unemployment rate is",unemployment_max)
+    if st.checkbox("Show Victim Gender Counts"):
+        st.write("The Victim Gender Count is", victim_gender_counts)
 
-    st.write(victim_race_counts)
-    st.write(victim_gender_counts)
-    st.write(perpetrator_gender_counts)
-    st.write(perpetrator_race_counts)
-    st.write(perpetrator_ethnicity_count)
-    st.write(victim_ethnicity_count)
-    st.write(merged_data[['White', 'Black', 'Hispanic', 'Men', 'Women']].describe())
+    if st.checkbox("Show Victim Ethnicity Counts"):
+        st.write("The Victim Ethnicity Count is", victim_ethnicity_counts)
 
+
+    if st.checkbox("Show Perpetrator Race Counts"):
+        st.write("The Perpetrator Race Count is", perpetrator_race_counts)
+
+    if st.checkbox("Show Perpetrator Gender Counts"):
+        st.write("The Perpetrator Gender Count is", perpetrator_gender_counts)
+
+    if st.checkbox("Show Perpetrator Ethnicity Counts"):
+        st.write("The Perpetrator Ethnicity Count is", perpetrator_ethnicity_counts)
+
+
+    
     selected_features = ['year', 'Overall_Unemployment_Rate', 'Victim Count', 
                          'Victim_Sex_encoded', 'Perpetrator_Sex_encoded']
 
@@ -378,8 +388,6 @@ elif option == "Data Analysis":
     st.write("Correlation matrix with selected features")
     st.plotly_chart(fig_corr)
 
-    victim_age_by_sex = merged_data.groupby('Victim Sex')['Victim Age'].mean()
-    st.dataframe(victim_age_by_sex)
 
 
     numeric_cols = merged_data.select_dtypes(include=[np.number]).columns
@@ -422,8 +430,10 @@ elif option == "Machine Learning":
     y_pred = reg.predict(X_test)
 
 
-    mse = mean_squared_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
+    mse_lr = mean_squared_error(y_test, y_pred)
+    rmse_lr = root_mean_squared_error(y_test, y_pred)
+    mae_lr = mean_absolute_error(y_test, y_pred)
+    r2_lr = r2_score(y_test, y_pred)
     #knn and rfr
     X = merged_data[['Overall_Unemployment_Rate', 'Victim_Sex_encoded', 'Perpetrator_Sex_encoded']]
     y = merged_data['Victim Count']
@@ -473,13 +483,6 @@ elif option == "Machine Learning":
     rf_cv_scores = cross_val_score(rf, X, y, cv=5, scoring='r2')
     knn_cv_scores = cross_val_score(knn, X_scaled, y, cv=5, scoring='r2')
 
-    st.write("Linear Regression CV R² scores:", linear_cv_scores)
-    st.write("Random Forest CV R² scores:", rf_cv_scores)
-    st.write("KNN CV R² scores:", knn_cv_scores)
-    st.write("Average CV R² for Linear Regression:", linear_cv_scores.mean())
-    st.write("Average CV R² for Random Forest:", rf_cv_scores.mean())
-    st.write("Average CV R² for KNN:", knn_cv_scores.mean())
-
     # Prepare a DataFrame for KNN test results
     df_test_knn = pd.DataFrame(X_test_knn, columns=X.columns)
     df_test_knn['Actual'] = y_test_knn.values
@@ -487,11 +490,11 @@ elif option == "Machine Learning":
 
     # Combine metrics for both models into a summary DataFrame
     metrics = {
-        'Model': ['Random Forest', 'KNN'],
-        'MSE': [mse_rf, mse_knn],
-        'RMSE': [rmse_rf, rmse_knn],
-        'MAE': [mae_rf, mae_knn],
-        'R2': [r2_rf, r2_knn]}
+        'Model': ['Random Forest', 'KNN', 'Linear Regression'],
+        'MSE': [mse_rf, mse_knn, mse_lr],
+        'RMSE': [rmse_rf, rmse_knn, rmse_lr],
+        'MAE': [mae_rf, mae_knn, mae_lr],
+        'R2': [r2_rf, r2_knn, r2_lr]}
     metrics_df = pd.DataFrame(metrics)
 
     # Create subplots to visualize model performance comparison
@@ -510,8 +513,11 @@ elif option == "Machine Learning":
     model_choice = st.selectbox("Choose a model:", ["Linear Regression", "Random Forest", "KNN"])
 
     if model_choice == "Linear Regression":
-        st.write(f"Linear Regression MSE: {mse:.2f}")
-        st.write(f"Linear Regression R-squared: {r2:.2f}")
+        st.write(f"Linear Regression MSE: {mse_lr:.2f}")
+        st.write(f"Linear Regression RMSE: {rmse_lr:.2f}")
+        st.write(f"Linear Regression MAE: {mae_lr:.2f}")
+        st.write(f"Linear Regression R^2: {r2_lr:.2f}")
+
     elif model_choice == "Random Forest":
         st.write(f"Random Forest MSE: {mse_rf:.2f}")
         st.write(f"Random Forest RMSE: {rmse_rf:.2f}")
@@ -523,29 +529,67 @@ elif option == "Machine Learning":
         st.write(f"KNN MAE: {mae_knn:.2f}")
         st.write(f"KNN R^2: {r2_knn:.2f}")
 
+    fig = make_subplots(rows=2, cols=2, subplot_titles=('MSE', 'RMSE', 'MAE', 'R²'))
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MSE'], text=metrics_df['MSE']), row=1, col=1)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['RMSE'], text=metrics_df['RMSE']), row=1, col=2)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MAE'], text=metrics_df['MAE']), row=2, col=1)
+    fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['R2'], text=metrics_df['R2']), row=2, col=2)
+    fig.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+    fig.update_layout(title_text='Model Performance Comparison', showlegend=False, height=700)
+    st.plotly_chart(fig)
+
+    st.title("Principal Component Analysis")
+    st.write("Visualization of Matrices")
+    from sklearn.impute import SimpleImputer
+    from sklearn.preprocessing import StandardScaler
+    scale = StandardScaler()
+    df_numeric = merged_data.select_dtypes(include=np.number)
+    scaled_df = scale.fit_transform(df_numeric)
+    perp_sex = merged_data['Perpetrator Sex'].values
+    U, sigma, VT = np.linalg.svd(scaled_df, full_matrices = False)
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 15))  # Adjusted to fit all subplots properly
+    sns.heatmap(U, cmap='viridis', ax=axes[0])
+    axes[0].set_title("U Matrix")
+
+    sns.heatmap(np.diag(sigma), cmap='viridis', ax=axes[1])
+    axes[1].set_title("Sigma Matrix")
+
+    sns.heatmap(VT, cmap='viridis', ax=axes[2])
+    axes[2].set_title("VT Matrix")
+
+    plt.tight_layout()
+    st.pyplot(fig)
+
+    st.write('Variance Plots')
+
+    explained_variance_ratio = (sigma ** 2) / np.sum(sigma ** 2)
+    cumulative_variance = np.cumsum(explained_variance_ratio)
+    
+    
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 15))
+    axes[0].plot(sigma, 'o-', color='teal')
+    axes[0].set_xlabel('Component Number')
+    axes[0].set_ylabel('Singular Value')
+    axes[0].set_title('Scree Plot')
+
+    axes[1].plot(explained_variance_ratio, 'o-', color='pink')
+    axes[1].set_xlabel('Component Number')
+    axes[1].set_ylabel('Explained Variance Ratio')
+    axes[1].set_title('Explained Variance Ratio')
+
+    axes[2].plot(cumulative_variance, 'o-', color='violet')
+    axes[2].set_xlabel('Component Number')
+    axes[2].set_ylabel('Cumulative Variance')
+    axes[2].set_title('Cumulative Explained Variance')
+
+    plt.tight_layout()
+    st.pyplot(fig)
 
 
-    selection_graph_model = st.selectbox("Choose a graph to display:",
-                                         ["Linear Regression",
-                                         "KNN and RFR"])
-    if selection_graph_model == "Linear Regression":
-        plt.figure(figsize=(8, 6))
-        plt.scatter(y_test, y_pred, color='blue', edgecolor='k', alpha=0.6)
-        plt.plot([y.min(), y.max()], [y.min(), y.max()], 'r--', lw=2) 
-        plt.xlabel("Actual Victim Count Total")
-        plt.ylabel("Predicted Victim Count Total")
-        plt.title("Actual vs Predicted: Linear Regression Model")
-        st.pyplot(plt.gcf())
-    elif selection_graph_model == "KNN and RFR":
-        fig = make_subplots(rows=2, cols=2, subplot_titles=('MSE', 'RMSE', 'MAE', 'R²'))
-        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MSE'], text=metrics_df['MSE']), row=1, col=1)
-        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['RMSE'], text=metrics_df['RMSE']), row=1, col=2)
-        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['MAE'], text=metrics_df['MAE']), row=2, col=1)
-        fig.add_trace(go.Bar(x=metrics_df['Model'], y=metrics_df['R2'], text=metrics_df['R2']), row=2, col=2)
-        fig.update_traces(texttemplate='%{text:.4f}', textposition='outside')
-        fig.update_layout(title_text='Model Performance Comparison', showlegend=False, height=700)
-        st.plotly_chart(fig)
-        
+    elbow_point = np.argmax(np.diff(cumulative_variance) < 0.05) + 1
+    st.write(f"Elbow point: {elbow_point}")        
 
 else:
     st.write("Show visualizations here.")
